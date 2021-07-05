@@ -1,7 +1,7 @@
 #! /bin/env python3
 import ipaddress
-from threading import Thread as T
-from queue import Queue as Q
+from threading import Thread
+from queue import Queue
 import argparse
 import sys
 import os
@@ -9,11 +9,49 @@ import socket
 import json
 
 
-NUMBER_OF_THREADS=1000
 DATA_FILE="result.json" # file to store historical results
 PORT_START = 1  # default ports 1-1024
 PORT_END = 1024
 SCAN_RES = {} # Current scan results
+
+class Worker(Thread):
+    """Run tasks in NUMBER_OF_THREADS """
+    def __init__(self, tasks):
+        Thread.__init__(self)
+        self.pool = tasks
+        self.daemon = True
+        self.start()
+
+    def run(self):
+        """Thread run function override """
+        while self.pool.not_empty:
+
+            func, args, kwargs = self.pool.get()
+            try:
+                func(*args, **kwargs)
+            except Exception as e:
+            #    print(func, args, kwargs)
+                print (e)
+            finally:
+                self.pool.task_done()
+
+
+class Tasks:
+    """Pool for Tasks """
+    def __init__(self,threads):
+        self.tasks = Queue(threads)
+        for _ in range(threads):
+            Worker(self.tasks)
+
+    def add_task(self, func, *args, **kwargs):
+        """ """
+        self.tasks.put((func, args, kwargs))
+
+    def wait(self):
+        """ """
+        self.tasks.join()
+
+
 
 def scan(host,port):
     """ Function scans if port is opened on host
@@ -23,19 +61,22 @@ def scan(host,port):
     """
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.15) # Set timeout to 150ms
+        sock.settimeout(0.05) # Set timeout to 150ms
         # Reuse socket if it is already in use
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         res = sock.connect_ex((host,port))
 
         # if connected
         if res == 0:
-            SCAN_RES["host"]["port"].append('port')
+           # print ("on {} port {} opened ".format(host,port))
+            SCAN_RES[host]["ports"].append(port)
         else:
+           # print ("on {} port {} closed ".format(host,port))
             pass ## Do not need to do anything if result is not 0
     except socket.timeout:
         pass
-    s.close() # close socket
+        # print("on {} port {} timeout".format(host,port))
+    sock.close() # close socket
 
 
 def main():
@@ -50,10 +91,21 @@ def main():
     aparse.add_argument("-s", "--start", required=True, type=int,
                          action="store",
                          help="Start port [Any from range 1-65535]")
-    aparse.add_argument("-e", "--end", required=True, type=int,
+    aparse.add_argument("-e", "--end",required=True,  type=int,
                          action="store",
                          help="End port [Any from range 1-65535]")
     args = aparse.parse_args()
+
+    global SCAN_RES
+    global PORT_START
+    global PORT_END
+    global NUMBER_OF_THREADS
+
+    if args.start is not None:
+        PORT_START = args.start
+
+    if args.end is not None:
+        PORT_END = args.end
 
     ## Do basic checks
     ## Check valid ip address
@@ -74,18 +126,18 @@ def main():
             aparse.print_help()
             sys.exit(os.EX_USAGE)
 
-    if args.ipaddr is not None or args.net is not None:
+    if args.ipaddr is not None and args.net is not None:
         print("ERROR: please use either ipaddress or network scan")
         aparse.print_help()
         sys.exit(os.EX_USAGE)
 
     ## Check ports
-    if args.start not in range(1,65535) or args.end not in range (1,65536):
+    if PORT_START not in range(1,65535) or PORT_END not in range (1,65536):
         print("ERROR: Start port or end port are not valid")
         aparse.print_help()
         sys.exit(os.EX_USAGE)
 
-    if args.start > args.end:
+    if PORT_START > PORT_END:
         print("ERROR: End port must be greater than start port")
         aparse.print_help()
         sys.exit(os.EX_USAGE)
@@ -98,13 +150,35 @@ def main():
         pass
 
     ## LEts check ig we have net scan or host scan
+
     if args.net is not None:
         ipaddrs = ipaddress.ip_network(args.net).hosts()
     else: # host scan
-        ipaddrs = ipaddress.ip_address(args.ipaddr + "/32")
+        ipaddrs = ipaddress.ip_network(args.ipaddr + "/32")
 
+    jobs = Tasks(1000)
     ## here we are going to do scan
+    for ip in ipaddrs:
+        if str(ip) not in SCAN_RES:
+            SCAN_RES.update({str(ip): {"ports": []}})
+            old_scan = []
+        else:
+            print ("Old scan: {}".format(SCAN_RES[str(ip)]["ports"]))
+            old_scan = SCAN_RES[str(ip)]["ports"]
+            SCAN_RES[str(ip)]["ports"].clear()
 
+        for port in range(PORT_START, PORT_END+1):
+            jobs.add_task (scan, str(ip), port)
+        if SCAN_RES[str(ip)]["ports"] == old_scan:
+            print("{} same results".format(str(ip)))
+        else:
+            print("{} : Old: {} New: {}".format(str(ip),old_scan,SCAN_RES[str(ip)]))
+    jobs.wait()
+
+
+    print(SCAN_RES)
+    with open(DATA_FILE,"w") as file:
+        json.dump(SCAN_RES,file)
 
 
 
