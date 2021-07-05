@@ -16,8 +16,18 @@ To determine ports to scan:
 
 Here is complete help:
 
-`./scanner.py 
-usage: scanner.py [-h] [-i IPADDR] [-n NET] -s START -e END
-scanner.py: error: the following arguments are required: -s/--start, -e/--end
+`
+./scanner.py -h
+usage: scanner.py [-h] [-i IPADDR] [-n NET] [-s START] [-e END]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i IPADDR, --ipaddr IPADDR
+                        Host to scan [IP Address] - IPv4
+  -n NET, --net NET     Network to scan [Address/Netmask] - IPv4
+  -s START, --start START
+                        Start port [Any from range 1-65535]. Default 1
+  -e END, --end END     End port [Any from range 1-65535]. Default 1024
+
 `
 

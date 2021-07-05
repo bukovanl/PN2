@@ -90,10 +90,10 @@ def main():
                          help="Network to scan [Address/Netmask] - IPv4")
     aparse.add_argument("-s", "--start", type=int,
                          action="store",
-                         help="Start port [Any from range 1-65535]")
+                         help="Start port [Any from range 1-65535]. Default 1")
     aparse.add_argument("-e", "--end", type=int,
                          action="store",
-                         help="End port [Any from range 1-65535]")
+                         help="End port [Any from range 1-65535]. Default 1024")
     args = aparse.parse_args()
 
     global SCAN_RES
