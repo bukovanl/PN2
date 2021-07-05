@@ -61,7 +61,7 @@ def scan(host,port):
     """
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.05) # Set timeout to 150ms
+        sock.settimeout(0.25) # Set timeout 250ms
         # Reuse socket if it is already in use
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         res = sock.connect_ex((host,port))
@@ -88,10 +88,10 @@ def main():
                          help="Host to scan [IP Address] - IPv4")
     aparse.add_argument("-n", "--net", action="store",
                          help="Network to scan [Address/Netmask] - IPv4")
-    aparse.add_argument("-s", "--start", required=True, type=int,
+    aparse.add_argument("-s", "--start", type=int,
                          action="store",
                          help="Start port [Any from range 1-65535]")
-    aparse.add_argument("-e", "--end",required=True,  type=int,
+    aparse.add_argument("-e", "--end", type=int,
                          action="store",
                          help="End port [Any from range 1-65535]")
     args = aparse.parse_args()
@@ -100,6 +100,11 @@ def main():
     global PORT_START
     global PORT_END
     global NUMBER_OF_THREADS
+
+    if args.ipaddr is None and args.net is None:
+        print("ERROR: Specify -i or -n")
+        aparse.print_help()
+        sys.exit(os.EX_USAGE)
 
     if args.start is not None:
         PORT_START = args.start
@@ -163,20 +168,25 @@ def main():
             SCAN_RES.update({str(ip): {"ports": []}})
             old_scan = []
         else:
-            print ("Old scan: {}".format(SCAN_RES[str(ip)]["ports"]))
+            #print ("Old scan: {}".format(SCAN_RES[str(ip)]["ports"]))
             old_scan = SCAN_RES[str(ip)]["ports"]
             SCAN_RES[str(ip)]["ports"].clear()
 
         for port in range(PORT_START, PORT_END+1):
             jobs.add_task (scan, str(ip), port)
-        if SCAN_RES[str(ip)]["ports"] == old_scan:
-            print("{} same results".format(str(ip)))
+        jobs.wait()
+
+        ## lets compare old results
+        if old_scan == SCAN_RES[str(ip)]["ports"] or (old_scan is None and SCAN_RES[str(ip)]["ports"] is None):
+            print("*Target - {}: Full scan results:*".format(str(ip)))
+            for ports in SCAN_RES[str(ip)]["ports"]:
+                print("Host: {0} Ports: {1}/open/tcp////".format(str(ip), ports))
         else:
-            print("{} : Old: {} New: {}".format(str(ip),old_scan,SCAN_RES[str(ip)]))
-    jobs.wait()
+            print(changed)
+            print("*Target - {}: No new records found in the last scan.*".format(str(ip)))
 
 
-    print(SCAN_RES)
+    # print(SCAN_RES)
     with open(DATA_FILE,"w") as file:
         json.dump(SCAN_RES,file)
 
