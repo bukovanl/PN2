@@ -182,7 +182,6 @@ def main():
             for ports in SCAN_RES[str(ip)]["ports"]:
                 print("Host: {0} Ports: {1}/open/tcp////".format(str(ip), ports))
         else:
-            print(changed)
             print("*Target - {}: No new records found in the last scan.*".format(str(ip)))
 
 
