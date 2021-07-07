@@ -177,7 +177,10 @@ def main():
         jobs.wait()
 
         ## lets compare old results
-        if old_scan != SCAN_RES[str(ip)]["ports"] or (old_scan is None and SCAN_RES[str(ip)]["ports"] is None):
+        # print (old_scan)
+        new_scan = list(SCAN_RES[str(ip)]["ports"])
+        # print(new_scan)
+        if old_scan != new_scan or (old_scan is None and new_scan is None):
             print("*Target - {}: Full scan results:*".format(str(ip)))
             for ports in SCAN_RES[str(ip)]["ports"]:
                 print("Host: {0} Ports: {1}/open/tcp////".format(str(ip), ports))
